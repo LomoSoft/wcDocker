@@ -945,9 +945,9 @@ define([
                             }
                             if (!myFrame._isFloating) {
                                 items['Detach Panel'] = {
-                                    name: 'Float Panel',
+                                    name: 'Detach Panel',
                                     faicon: 'level-up',
-                                    disabled: !myFrame.panel().moveable() || myFrame.panel()._isPlaceholder
+                                    disabled: !myFrame.panel().moveable() || !myFrame.panel().detachable() || myFrame.panel()._isPlaceholder
                                 };
                             }
 
@@ -985,9 +985,9 @@ define([
                                 }
                                 if (!myFrame._isFloating) {
                                     items['Detach Panel'] = {
-                                        name: 'Float Panel',
+                                        name: 'Detach Panel',
                                         faicon: 'level-up',
-                                        disabled: !myFrame.panel().moveable() || myFrame.panel()._isPlaceholder
+                                        disabled: !myFrame.panel().moveable() || !myFrame.panel().detachable() || myFrame.panel()._isPlaceholder
                                     };
                                 }
 
@@ -1376,27 +1376,28 @@ define([
                                 self._draggingFrame.panel(0);
                             }
 
-                            if (self._draggingFrameTab || !self.__isLastFrame(self._draggingFrame)) {
-                                var panel = self._draggingFrame.panel(parseInt($(self._draggingFrameTab).attr('id')));
-                                self.movePanel(panel, wcDocker.DOCK.FLOAT, null, self._ghost.__rect());
-                                // Dragging the entire frame.
-                                if (!self._draggingFrameTab) {
-                                    while (self._draggingFrame.panel()) {
+                            var panel = self._draggingFrame.panel(parseInt($(self._draggingFrameTab).attr('id')));
+                            self.movePanel(panel, wcDocker.DOCK.FLOAT, null, self._ghost.__rect());
+                            // Dragging the entire frame.
+                            if (!self._draggingFrameTab) {
+                                var count = self._draggingFrame._panelList.length;
+                                if (count > 1 || self._draggingFrame.panel() !== self._placeholderPanel) {
+                                    for (var i = 0; i < count; ++i) {
                                         self.movePanel(self._draggingFrame.panel(), wcDocker.DOCK.STACKED, panel, {tabOrientation: self._draggingFrame._tabOrientation});
                                     }
                                 }
-
-                                var frame = panel._parent;
-                                if (frame && frame.instanceOf('wcFrame')) {
-                                    frame.pos(mouse.x, mouse.y + self._ghost.__rect().h / 2 - 10, true);
-
-                                    frame._size.x = self._ghost.__rect().w;
-                                    frame._size.y = self._ghost.__rect().h;
-                                }
-
-                                frame.__update();
-                                self.__focus(frame);
                             }
+
+                            var frame = panel._parent;
+                            if (frame && frame.instanceOf('wcFrame')) {
+                                frame.pos(mouse.x, mouse.y + self._ghost.__rect().h / 2 - 10, true);
+
+                                frame._size.x = self._ghost.__rect().w;
+                                frame._size.y = self._ghost.__rect().h;
+                            }
+
+                            frame.__update();
+                            self.__focus(frame);
                         } else if (!anchor.self && anchor.loc !== undefined) {
                             // Changing tab location on the same frame.
                             if (anchor.tab && anchor.item._parent._parent == self._draggingFrame) {
@@ -1441,8 +1442,11 @@ define([
                                     if (!rect.tabOrientation) {
                                         rect.tabOrientation = self._draggingFrame.tabOrientation();
                                     }
-                                    while (self._draggingFrame.panel()) {
-                                        self.movePanel(self._draggingFrame.panel(), wcDocker.DOCK.STACKED, panel, rect);
+                                    var count = self._draggingFrame._panelList.length;
+                                    if (count > 1 || self._draggingFrame.panel() !== self._placeholderPanel) {
+                                        for (var i = 0; i < count; ++i) {
+                                            self.movePanel(self._draggingFrame.panel(), wcDocker.DOCK.STACKED, panel, rect);
+                                        }
                                     }
                                 } else {
                                     var frame = panel._parent;
@@ -1562,7 +1566,9 @@ define([
                                 }
                             }
 
-                            self._ghost.anchor(mouse, null);
+                            if (self._draggingFrame.panel().detachable()) {
+                                self._ghost.anchor(mouse, null);
+                            }
                         } else {
                             self._draggingFrame.__shadow(false);
                             var $target = $(document.elementFromPoint(mouse.x, mouse.y));
@@ -1572,7 +1578,7 @@ define([
                             }
                         }
                     } else if (self._creatingPanel) {
-                        self._ghost.update(mouse);
+                        self._ghost.update(mouse, !self._creatingPanelNoFloating);
                     }
                 } else if (self._draggingFrame && !self._draggingFrameTab) {
                     self._draggingFrame.__move(mouse);
@@ -1955,6 +1961,7 @@ define([
                     self._ghost.update(mouse);
                     self._ghost.anchor(mouse, self._ghost.anchor());
                     self._creatingPanel = panelType;
+                    self._creatingPanelNoFloating = !$(this).data('nofloating');
                     self.__focus();
                     self.trigger(wcDocker.EVENT.BEGIN_DOCK);
                 }
